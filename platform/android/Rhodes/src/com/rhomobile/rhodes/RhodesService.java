@@ -1215,7 +1215,8 @@ public class RhodesService extends Service {
 
 		if (alert != null) {
 			Logger.D(TAG, "PUSH: Alert: " + alert);
-            Alert.showPopup(alert);
+			//This is a PARIVEDA Change to prevent duplicate pop-ups from occurring. Do not uncomment the next line:
+			// Alert.showPopup(alert);
 		}
 		final String sound = extras.getString("sound");
 		if (sound != null) {
