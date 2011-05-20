@@ -1210,7 +1210,7 @@ public class RhodesService extends Service {
         
         if (statusNotification) {
             Intent intent = new Intent(getContext(), RhodesActivity.class);
-            StatusNotification.simpleNotification(TAG, 0, getContext(), intent, "PUSH message from: " + from, alert);
+            StatusNotification.simpleNotification(TAG, 0, getContext(), intent, "Message from Insphere", alert);
         }
 
 		if (alert != null) {
