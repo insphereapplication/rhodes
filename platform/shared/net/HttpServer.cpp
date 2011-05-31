@@ -1034,18 +1034,31 @@ bool CHttpServer::call_ruby_method(String const &uri, String const &body, String
     return true;
 }
 
-bool CHttpServer::decide(String const &method, String const &uri, String const &query,
+bool CHttpServer::decide(String const &method, String const &arg_uri, String const &query,
                          HeaderList const &headers, String const &body)
 {
-    RAWTRACE1("Decide what to do with uri %s", uri.c_str());
-    callback_t callback = registered(uri);
+    RAWTRACE1("Decide what to do with uri %s", arg_uri.c_str());
+    callback_t callback = registered(arg_uri);
     if (callback) {
-        RAWTRACE1("Uri %s is registered callback, so handle it appropriately", uri.c_str());
+        RAWTRACE1("Uri %s is registered callback, so handle it appropriately", arg_uri.c_str());
         callback(this, query.length() ? query : body);
         return true;
     }
-    
-    String fullPath = CFilePath::join(m_root,uri);
+
+    String uri = arg_uri;
+
+#ifdef OS_ANDROID
+    //Work around malformed Android WebView URLs
+    if (!String_startsWith(uri, "/app") &&
+        !String_startsWith(uri, "/public") &&
+        !String_startsWith(uri, "/data")) 
+    {
+        RAWTRACE1("Malformed URL: '%s', adding '/app' prefix.", uri.c_str());
+        uri = CFilePath::join("/app", uri);
+    }
+#endif
+
+    String fullPath = CFilePath::join(m_root, uri);
     
     Route route;
     if (dispatch(uri, route)) {
@@ -1069,6 +1082,7 @@ bool CHttpServer::decide(String const &method, String const &uri, String const &
         return true;
     }
     
+#ifndef OS_ANDROID
     if (isdir(fullPath)) {
         RAWTRACE1("Uri %s is directory, redirecting to index", uri.c_str());
         String q = query.empty() ? "" : "?" + query;
@@ -1079,7 +1093,14 @@ bool CHttpServer::decide(String const &method, String const &uri, String const &
         send_response(create_response("301 Moved Permanently", headers));
         return false;
     }
-    
+#else
+    //Work around this Android redirect bug:
+    //http://code.google.com/p/android/issues/detail?can=2&q=11583&id=11583
+    if (isdir(fullPath)) {
+        RAWTRACE1("Uri %s is directory, override with index", uri.c_str());
+        return decide(method, CFilePath::join( uri, "index_erb.iseq"), query, headers, body);
+    }
+#endif
     if (isindex(uri)) {
         if (!isfile(fullPath)) {
             RAWLOG_ERROR1("The file %s was not found", fullPath.c_str());
