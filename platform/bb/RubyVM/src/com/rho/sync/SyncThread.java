@@ -483,7 +483,19 @@ public class SyncThread extends ThreadQueue
 					    
 					}
 				});
-		
+	
+		klass.getSingletonClass().defineMethod("is_syncing",
+			new RubyNoArgMethod() {
+				protected RubyValue run(RubyValue receiver, RubyBlock block) {
+					try{
+					    return getSyncEngine().isSyncing() ? ObjectFactory.createInteger(1) : ObjectFactory.createInteger(0);
+					}catch(Exception e){
+						LOG.ERROR("is_syncing failed", e);
+						throw (e instanceof RubyException ? (RubyException)e : new RubyException(e.getMessage()));
+					}
+				}
+			});
+					
 		klass.getSingletonClass().defineMethod("logged_in",
 			new RubyNoArgMethod() {
 				protected RubyValue run(RubyValue receiver, RubyBlock block) {

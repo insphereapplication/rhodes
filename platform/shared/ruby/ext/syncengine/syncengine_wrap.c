@@ -1815,6 +1815,8 @@ static VALUE mSyncEngine;
 
 
 /* Put header files here or function declarations like below */
+	extern int rho_sync_is_syncing();
+	#define is_syncing rho_sync_is_syncing
 	#define dosync rho_sync_doSyncAllSources
 	extern VALUE rho_sync_doSyncAllSources(int show_status_popup);
 	#define dosync_source rho_sync_doSyncSource

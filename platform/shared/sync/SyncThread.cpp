@@ -331,6 +331,11 @@ int rho_sync_logged_in()
     return CSyncThread::getSyncEngine().isLoggedIn() ? 1 : 0;
 }
 
+int rho_sync_is_syncing()
+{
+	return CSyncThread::getSyncEngine().isSyncing() ? 1 : 0;
+}
+
 void rho_sync_logout()
 {
 	LOG(INFO) + "Logout";
