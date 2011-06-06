@@ -216,7 +216,7 @@ class Jake
 
     cmdstr = argv.map { |x| x =~ / |\|/ ? '"' + x + '"' : x }.join(' ')
 
-    puts "PWD: " + pwd
+    puts "PWD: " + Dir.pwd
     puts "CMD: " + cmdstr
     $stdout.flush
 
