@@ -6,6 +6,9 @@
 #include "net/iphone/sslimpl.h"
 #include "RhoCryptImpl.h"
 
+#include <common/RhoMutexLock.h>
+#include <common/AutoPointer.h>
+
 namespace rho {
 namespace common {
 		
@@ -20,15 +23,27 @@ public:
     {
         return new CPosixThreadImpl;
     }
-    net::ISSL* createSSLEngine()
-    {
-        return new net::SSLImpl();
-    }
 
     IRhoCrypt* createRhoCrypt()
     {
         return new CRhoCryptImpl();
     }
+
+    net::ISSL* createSSLEngine()
+    {
+        if(!m_pSsl)
+        {
+            CMutexLock lock(m_sslMutex);
+            if(!m_pSsl)
+                m_pSsl = new net::SSLImpl();
+        }
+        return m_pSsl;
+    }
+    
+    
+private:    
+    CMutex m_sslMutex;
+    common::CAutoPtr<net::ISSL> m_pSsl;    
 };
 
 }

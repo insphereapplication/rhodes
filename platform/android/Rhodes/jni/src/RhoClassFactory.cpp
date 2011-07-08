@@ -22,7 +22,13 @@ IRhoThreadImpl *CRhoClassFactory::createThreadImpl()
 
 net::ISSL *CRhoClassFactory::createSSLEngine()
 {
-    return new net::SSLImpl();
+    if(!m_pSsl)
+    {
+        CMutexLock lock(m_sslMutex);
+        if(!m_pSsl)
+            m_pSsl = new net::SSLImpl();
+    }
+    return m_pSsl;
 }
 
 IRhoCrypt *CRhoClassFactory::createRhoCrypt()
