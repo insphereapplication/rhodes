@@ -99,12 +99,14 @@ char const *CAppCallbacksQueue::toString(int type)
         return "UNKNOWN";
     }
 }
+    
+    
 
 CAppCallbacksQueue::CAppCallbacksQueue()
     :CThreadQueue(), m_expected(local_server_started)
 {
     CThreadQueue::setLogCategory(getLogCategory());
-    //setPollInterval(1);
+    setPollInterval(QUEUE_POLL_INTERVAL_INFINITE);
     start(epNormal);
 }
 
@@ -122,6 +124,7 @@ void CAppCallbacksQueue::processCommand(IQueueCommand* pCmd)
     Command *cmd = (Command *)pCmd;
     if (!cmd)
         return;
+    
 /*
     if (cmd->type < m_expected)
     {
@@ -237,6 +240,7 @@ CRhodesApp::CRhodesApp(const String& strRootPath)
     m_bExit = false;
     m_bDeactivationMode = false;
     m_bRestartServer = false;
+    m_bSendingLog = false;
     //m_activateCounter = 0;
 
     m_appCallbacksQueue = new CAppCallbacksQueue();
@@ -353,6 +357,11 @@ private:
     virtual void run()
     {
         m_cb->run(*this);
+    }
+
+    virtual void runObject()
+    {
+        common::CRhoThread::runObject();
         delete this;
     }
 
@@ -937,36 +946,62 @@ void CRhodesApp::navigateBack()
 	}
 }
 
-boolean CRhodesApp::sendLog() 
+class CRhoSendLogCall
 {
-    String strDevicePin = rho::sync::CClientRegister::getInstance() ? rho::sync::CClientRegister::getInstance()->getDevicePin() : "";
-	String strClientID = rho::sync::CSyncThread::getSyncEngine().readClientID();
+    String m_strCallback;
+public:
+    CRhoSendLogCall(const String& strCallback): m_strCallback(strCallback){}
 
-    String strLogUrl = RHOCONF().getPath("logserver");
-    if ( strLogUrl.length() == 0 )
-        strLogUrl = RHOCONF().getPath("syncserver");
-
-	String strQuery = strLogUrl + "client_log?" +
-	    "client_id=" + strClientID + "&device_pin=" + strDevicePin + "&log_name=" + RHOCONF().getString("logname");
-
-    net::CMultipartItem oItem;
-    oItem.m_strFilePath = LOGCONF().getLogFilePath();
-    oItem.m_strContentType = "application/octet-stream";
-
-    boolean bOldSaveToFile = LOGCONF().isLogToFile();
-    LOGCONF().setLogToFile(false);
-    NetRequest oNetRequest;
-    oNetRequest.setSslVerifyPeer(false);
-
-    NetResponse resp = getNetRequest(&oNetRequest).pushMultipartData( strQuery, oItem, &(rho::sync::CSyncThread::getSyncEngine()), null );
-    LOGCONF().setLogToFile(bOldSaveToFile);
-
-    if ( !resp.isOK() )
+    void run(common::CRhoThread &)
     {
-        LOG(ERROR) + "send_log failed : network error - " + resp.getRespCode() + "; Body - " + resp.getCharData();
-        return false;
-    }
+        String strDevicePin = rho::sync::CClientRegister::getInstance() ? rho::sync::CClientRegister::getInstance()->getDevicePin() : "";
+	    String strClientID = rho::sync::CSyncThread::getSyncEngine().readClientID();
+        
+        String strLogUrl = RHOCONF().getPath("logserver");
+        if ( strLogUrl.length() == 0 )
+            strLogUrl = RHOCONF().getPath("syncserver");
+        
+	    String strQuery = strLogUrl + "client_log?" +
+            "client_id=" + strClientID + "&device_pin=" + strDevicePin + "&log_name=" + RHOCONF().getString("logname");
+        
+        net::CMultipartItem oItem;
+        oItem.m_strFilePath = LOGCONF().getLogFilePath();
+        oItem.m_strContentType = "application/octet-stream";
+        
+        boolean bOldSaveToFile = LOGCONF().isLogToFile();
+        LOGCONF().setLogToFile(false);
+        NetRequest oNetRequest;
+        oNetRequest.setSslVerifyPeer(false);
+        
+        NetResponse resp = getNetRequest(&oNetRequest).pushMultipartData( strQuery, oItem, &(rho::sync::CSyncThread::getSyncEngine()), null );
+        LOGCONF().setLogToFile(bOldSaveToFile);
+        
+        boolean isOK = true;
+        
+        if ( !resp.isOK() )
+        {
+            LOG(ERROR) + "send_log failed : network error - " + resp.getRespCode() + "; Body - " + resp.getCharData();
+            isOK = false;
+        }
 
+        if (m_strCallback.length() > 0) 
+        {
+            String body = isOK ? "rho_callback=1&status=ok" : "rho_callback=1&status=error";
+
+            rho_net_request_with_data(rho_http_normalizeurl(m_strCallback.c_str()), body.c_str());
+        }
+
+        RHODESAPP().setSendingLog(false);
+    }
+};
+
+boolean CRhodesApp::sendLog( const String& strCallbackUrl) 
+{
+    if ( m_bSendingLog )
+        return true;
+
+    m_bSendingLog = true;
+    rho_rhodesapp_call_in_thread( new CRhoSendLogCall(strCallbackUrl) );
     return true;
 }
 
@@ -1373,9 +1408,13 @@ int rho_rhodesapp_isrubycompiler()
     return 0;
 }
 
-int rho_conf_send_log()
+int rho_conf_send_log(const char* callback_url)
 {
-    return RHODESAPP().sendLog();
+    rho::String s_callback_url = "";
+    if (callback_url != NULL) {
+        s_callback_url = callback_url;
+    }
+    return RHODESAPP().sendLog(s_callback_url);
 }
 
 void rho_net_request(const char *url)
