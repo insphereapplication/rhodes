@@ -177,7 +177,7 @@ INetResponse* CURLNetRequest::doRequest(const char *method, const String& strUrl
 CURLcode CURLNetRequest::doCURLPerform(const String& strUrl)
 {
 	CURLcode err = m_curl.perform();
-	if ( err !=  CURLE_OK && !RHODESAPP().isBaseUrl(strUrl.c_str()) )
+	if ( err !=  CURLE_OK && !RHODESAPP().isBaseUrl(strUrl.c_str()) && err != CURLE_OBSOLETE4 )
 	{
 		long statusCode = 0;
 		curl_easy_getinfo(m_curl.curl(), CURLINFO_RESPONSE_CODE, &statusCode);
@@ -394,6 +394,9 @@ int CURLNetRequest::getResponseCode(CURLcode err, char const *body, size_t bodys
                 oSession->logout();
     }
     else {
+        if (err != CURLE_OK && err != CURLE_PARTIAL_FILE && statusCode != 0)
+            statusCode = 500;
+
         RAWTRACE1("RESPONSE----- (%d bytes)", bodysize);
         RAWTRACE(body);
         RAWTRACE("END RESPONSE-----");
@@ -643,7 +646,7 @@ CURLcode CURLNetRequest::CURLHolder::perform()
         if (m_active <= 0) {
             RAWLOG_INFO("CURLNetRequest: request was canceled from another thread !");
             RAWLOG_INFO3("   CURLNetRequest: METHOD = [%s] URL = [%s] BODY = [%s]", mStrMethod.c_str(), mStrUrl.c_str(), mStrBody.c_str());
-           return CURLE_COULDNT_CONNECT;   
+           return CURLE_OBSOLETE4;   
         }
         int running;
         
