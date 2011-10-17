@@ -47,6 +47,8 @@ platform/android/Rhodes/src/com/rhomobile/rhodes/mainview/MainView.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mainview/SimpleMainView.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mainview/TabbedMainView.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/Annotation.java
+platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/Callout.java
+platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/CalloutOverlay.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/AnnotationsOverlay.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/GoogleMapView.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/MapTouch.java
@@ -54,6 +56,7 @@ platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/MapView.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/MultiTouchHandler.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/OneTouchHandler.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/TouchHandler.java
+platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/ExtrasHolder.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/nativeview/RhoNativeViewManager.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/phonebook/Contact.java
 platform/android/Rhodes/src/com/rhomobile/rhodes/phonebook/ContactAccessor.java

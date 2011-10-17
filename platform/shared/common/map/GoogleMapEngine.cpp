@@ -1,157 +1,118 @@
+/*------------------------------------------------------------------------
+* (The MIT License)
+*
+* Copyright (c) 2008-2011 Rhomobile, Inc.
+*
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+*
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+*
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+*
+* http://rhomobile.com
+*------------------------------------------------------------------------*/
+
 #include "common/map/GoogleMapEngine.h"
 #include "common/IRhoClassFactory.h"
 #include "common/RhoThread.h"
 #include "net/URI.h"
 #include "json/JSONIterator.h"
 
+#include "common/RhoMath.h"
+#include "common/RhoConf.h"
+#include "common/RhodesApp.h"
+#include "common/RhoFile.h"
+#include "net/INetRequest.h"
+
+
 #undef DEFAULT_LOGCATEGORY
 #define DEFAULT_LOGCATEGORY "GoogleMapEngine"
 
 extern "C" unsigned long rjson_tokener_parse(const char *str, char** pszError);
 
-namespace rho
+namespace rho { namespace common { namespace map {
+
+GoogleMapView::GoogleMapView(IDrawingDevice *device)
+    :BaseMapView(device, "rhogoogle") {}
+
+int GoogleMapView::getMapTile(uint64 p_zoom, uint64 p_row, uint64 p_column, void** p_data, size_t* p_size)
 {
-namespace common
-{
-namespace map
-{
 
-String GoogleGeoCoding::Command::toString()
-{
-    return address;
-}
+    void *data = NULL;
+    size_t datasize = 0;
 
-IMPLEMENT_LOGCLASS(GoogleGeoCoding,"GGeoCoding");
-GoogleGeoCoding::GoogleGeoCoding()
-{
-    CThreadQueue::setLogCategory(getLogCategory());
-    RHO_MAP_TRACE("GoogleGeoCoding: ctor start");
-    start(epNormal);
-    RHO_MAP_TRACE("GoogleGeoCoding: ctor finish");
-}
+    String url = "";//cmd->baseUrl;
 
-GoogleGeoCoding::~GoogleGeoCoding()
-{
-    RHO_MAP_TRACE("GoogleGeoCoding: dtor");
+    int zoom = (int)p_zoom;
 
-    m_NetRequest.cancel();
-    CThreadQueue::stop(200);
-}
-/*
-void GoogleGeoCoding::stop()
-{
-    RHO_MAP_TRACE("GoogleGeoCoding: stop");
-    CThreadQueue::stop(200);
-}*/
 
-bool GoogleGeoCoding::fetchData(String const &url, void **data, size_t *datasize)
-{
-    RHO_MAP_TRACE1("GoogleGeoCoding: fetchData: url=%s", url.c_str());
-    NetResponse resp = getNet().doRequest("GET", url, "", 0, 0);
-    if (!resp.isOK())
-        return false;
-    *datasize = resp.getDataSize();
-    *data = malloc(*datasize);
-    if (!*data)
-        return false;
-    memcpy(*data, resp.getCharData(), *datasize);
-    return true;
-}
+    uint64 pow2 = rho_math_pow2(zoom);
 
-void GoogleGeoCoding::resolve(String const &address, GeoCodingCallback *cb)
-{
-    RHO_MAP_TRACE1("GoogleGeoCoding: resolve address=%s", address.c_str());
-    addQueueCommand(new Command(address, cb));
-}
+    double current_width_in_pixels = (double)(pow2 * (TILE_SIZE));
+    double current_height_in_pixels = (double)(pow2 * (TILE_SIZE));
 
-static bool parse_json(const char *data, double *plat, double *plon)
-{
-    RHO_MAP_TRACE1("parse_json: data=%s", data);
-    json::CJSONEntry json(data);
-    const char *status = json.getString("status");
-    RHO_MAP_TRACE1("parse_json: status=%s", status);
-    if (strcasecmp(status, "OK") != 0)
-        return false;
-    for (json::CJSONArrayIterator results = json.getEntry("results"); !results.isEnd(); results.next())
-    {
-        json::CJSONEntry item = results.getCurItem();
-        if (!item.hasName("geometry"))
-            continue;
+    double tile_center_x_in_pixels = (double)(p_column*(TILE_SIZE)+((TILE_SIZE)/2));
+    double tile_center_y_in_pixels = (double)(p_row*(TILE_SIZE)+((TILE_SIZE)/2));
 
-        json::CJSONEntry geometry = item.getEntry("geometry");
-        json::CJSONEntry location = geometry.getEntry("location");
-        *plat = location.getDouble("lat");
-        *plon = location.getDouble("lng");
-        return true;
-    }
+    double center_latitude = pixelsToDegreesY((uint64)tile_center_y_in_pixels, zoom);//((double)-90.0) + ((current_height_in_pixels - tile_center_y_in_pixels)/(current_height_in_pixels))*((double)180.0);
+    double center_longitude = pixelsToDegreesX((uint64)tile_center_x_in_pixels, zoom);//((double)-180.0) + ((tile_center_x_in_pixels)/(current_width_in_pixels))*((double)360.0);
 
-    return false;
-}
+    // Make url
+    char buf[1024];
 
-void GoogleGeoCoding::processCommand(IQueueCommand *pCmd)
-{
-    Command *cmd = (Command*)pCmd;
-    GeoCodingCallback &cb = *(cmd->callback);
+    // Open Street Map
+    //snprintf(buf, sizeof(buf), "http://a.tah.openstreetmap.org/Tiles/tile/%d/%d/%d.png", zoom, (int)p_column, (int)p_row);
 
-    String url = "http://maps.googleapis.com/maps/api/geocode/json?address=";
-    url += net::URI::urlEncode(cmd->address);
-    url += "&sensor=false";
+    // Google Map
+    snprintf(buf, sizeof(buf), "http://maps.googleapis.com/maps/api/staticmap?center=%f,%f&zoom=%d&size=256x280&scale=1&maptype=%s&format=png&sensor=false&mobile=true", center_latitude, center_longitude, zoom, mapType().c_str());
 
-    RHO_MAP_TRACE1("GoogleGeoCoding: processCommand: url=%s", url.c_str());
+    // Google Map on Blackberry
 
-    void *data;
-    size_t datasize;
+    // StringBuffer url = new StringBuffer();
+    // url.append("http://maps.google.com/maps/api/staticmap?");
+    // url.append("center=" + Double.toString(latitude) + "," + Double.toString(longitude));
+    // url.append("&zoom=" + cmd.zoom);
+    // url.append("&size=" + cmd.width + "x" + cmd.height);
+    // url.append("&maptype=" + cmd.maptype);
+    // url.append("&format=png&sensor=false");
+    // url.append("&mobile=" + (cmd.maptype.equals("roadmap") ? "true" : "false"));
+    // url.append("&key=" + mapkey);
+    // String finalUrl = url.toString();
+
+    // byte[] data = fetchData(finalUrl);
+
+
+    url += buf;
+
     if (!fetchData(url, &data, &datasize))
-    {
-        RAWLOG_ERROR1("Can not fetch data by url=%s", url.c_str());
-        return;
-    }
+        return 0;
 
-    RHO_MAP_TRACE("GoogleGeoCoding: processCommand: Parse received json...");
+    *p_data = data;
+    *p_size = datasize;
 
-    double latitude, longitude;
-    if (parse_json((const char *)data, &latitude, &longitude))
-    {
-        RHO_MAP_TRACE("GoogleGeoCoding: processCommand: json parsed successfully");
-        cb.onSuccess(latitude, longitude);
-    }
-    else
-    {
-        RHO_MAP_TRACE("GoogleGeoCoding: processCommand: can't parse json");
-        cb.onError("Can not parse JSON response");
-    }
-    /*
-    char *error = 0;
-    unsigned long json = rjson_tokener_parse((char const *)data, &error);
-    if (!rho_ruby_is_NIL(json))
-    {
-        RHO_MAP_TRACE("GoogleGeoCoding: processCommand: extract coordinates from json...");
-        unsigned long coords = rho_ruby_google_geocoding_get_coordinates(json);
-        if (rho_ruby_is_NIL(coords))
-        {
-            RHO_MAP_TRACE("GoogleGeoCoding: processCommand: rho_ruby_google_geocoding_get_coordinates return nil");
-            cb.onError("Cannot parse received JSON object");
-        }
-        else
-        {
-            RHO_MAP_TRACE("GoogleGeoCoding: processCommand: rho_ruby_google_geocoding_get_coordinates return coordinates");
-            double latitude = rho_ruby_google_geocoding_get_latitude(coords);
-            double longitude = rho_ruby_google_geocoding_get_longitude(coords);
-            RHO_MAP_TRACE2("GoogleGeoCoding: processCommand: latitude=%lf, longitude=%lf", latitude, longitude);
-            cb.onSuccess(latitude, longitude);
-        }
-    }
-    else
-    {
-        RHO_MAP_TRACE("GoogleGeoCoding: processCommand: rjson_tokener_parse return nil");
-        cb.onError(error);
-    }
+    return 1;
+}
 
-    if (error)
-        free (error);
-    */
+IMapView *GoogleMapEngine::createMapView(IDrawingDevice *device)
+{
+    return new GoogleMapView(device);
+}
 
-    free(data);
+void GoogleMapEngine::destroyMapView(IMapView *view)
+{
+    delete view;
 }
 
 } // namespace map

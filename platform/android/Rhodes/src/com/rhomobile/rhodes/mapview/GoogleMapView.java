@@ -1,3 +1,29 @@
+/*------------------------------------------------------------------------
+* (The MIT License)
+* 
+* Copyright (c) 2008-2011 Rhomobile, Inc.
+* 
+* Permission is hereby granted, free of charge, to any person obtaining a copy
+* of this software and associated documentation files (the "Software"), to deal
+* in the Software without restriction, including without limitation the rights
+* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* 
+* The above copyright notice and this permission notice shall be included in
+* all copies or substantial portions of the Software.
+* 
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+* THE SOFTWARE.
+* 
+* http://rhomobile.com
+*------------------------------------------------------------------------*/
+
 package com.rhomobile.rhodes.mapview;
 
 import java.io.IOException;
@@ -9,6 +35,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.location.Address;
 import android.location.Geocoder;
@@ -20,11 +48,13 @@ import android.widget.RelativeLayout;
 import com.google.android.maps.GeoPoint;
 import com.google.android.maps.MapActivity;
 import com.google.android.maps.MapController;
+import com.google.android.maps.MyLocationOverlay;
 import com.rhomobile.rhodes.AndroidR;
 import com.rhomobile.rhodes.Logger;
 import com.rhomobile.rhodes.RhodesActivity;
 import com.rhomobile.rhodes.RhodesService;
 import com.rhomobile.rhodes.util.PerformOnUiThread;
+import com.rhomobile.rhodes.Utils;
 
 public class GoogleMapView extends MapActivity {
 
@@ -39,6 +69,8 @@ public class GoogleMapView extends MapActivity {
 	
 	private com.google.android.maps.MapView view;
 	private AnnotationsOverlay annOverlay;
+	private CalloutOverlay mCalloutOverlay;
+	private MyLocationOverlay mMyLocationOverlay;
 	
 	private double spanLat = 0;
 	private double spanLon = 0;
@@ -46,6 +78,9 @@ public class GoogleMapView extends MapActivity {
 	private String apiKey;
 	
 	private Vector<Annotation> annotations;
+	
+	
+	static private ExtrasHolder mHolder = null;
 	
 	private static class Coordinates {
 		public double latitude;
@@ -70,6 +105,16 @@ public class GoogleMapView extends MapActivity {
 			mServiceConnection = null;
 		}
 		super.onDestroy();
+		mc = null;
+	}
+	
+	public void selectAnnotation(Annotation ann) {
+		final Annotation fann = ann;
+		PerformOnUiThread.exec(new Runnable() {
+			public void run() {
+				mCalloutOverlay.selectAnnotation(fann);
+			}
+		}, false);
 	}
 	
 	@Override
@@ -93,7 +138,10 @@ public class GoogleMapView extends MapActivity {
 		setContentView(layout, new LayoutParams(LayoutParams.FILL_PARENT, LayoutParams.FILL_PARENT));
 		
 		// Extrace parameters
-		Bundle extras = getIntent().getExtras();
+		//Bundle extras = getIntent().getExtras();
+		
+		ExtrasHolder extras = mHolder;
+		
 		apiKey = extras.getString(SETTINGS_PREFIX + "api_key");
 		
 		// Extract settings
@@ -103,7 +151,7 @@ public class GoogleMapView extends MapActivity {
 		
 		boolean zoom_enabled = extras.getBoolean(SETTINGS_PREFIX + "zoom_enabled");
 		//boolean scroll_enabled = extras.getBoolean(SETTINGS_PREFIX + "scroll_enabled");
-		//boolean shows_user_location = extras.getBoolean(SETTINGS_PREFIX + "shows_user_location");
+		boolean shows_user_location = extras.getBoolean(SETTINGS_PREFIX + "shows_user_location");
 		
 		// Extract annotations
 		int size = extras.getInt(ANNOTATIONS_PREFIX + "size") + 1;
@@ -138,6 +186,11 @@ public class GoogleMapView extends MapActivity {
 			ann.url = extras.getString(prefix + "url");
 			if (ann.url != null)
 				ann.url = RhodesService.getInstance().normalizeUrl(ann.url);
+			
+			ann.image = extras.getString(prefix+"image");
+			ann.image_x_offset = extras.getInt(prefix + "image_x_offset");
+			ann.image_y_offset = extras.getInt(prefix + "image_y_offset");
+			
 			annotations.addElement(ann);
 		}
 		
@@ -146,10 +199,22 @@ public class GoogleMapView extends MapActivity {
 		view.setClickable(true);
 		layout.addView(view);
 		
+		Bitmap pin = BitmapFactory.decodeResource(getResources(), AndroidR.drawable.marker);
+		
 		Drawable marker = getResources().getDrawable(AndroidR.drawable.marker);
 		marker.setBounds(0, 0, marker.getIntrinsicWidth(), marker.getIntrinsicHeight());
-		annOverlay = new AnnotationsOverlay(this, marker);
+		annOverlay = new AnnotationsOverlay(this, marker, pin.getDensity());
+		
+		mCalloutOverlay = new CalloutOverlay(this, marker);
+		
+		if (shows_user_location) {
+			mMyLocationOverlay = new MyLocationOverlay(this, view);
+			view.getOverlays().add(mMyLocationOverlay);
+		}
+
 		view.getOverlays().add(annOverlay);
+		view.getOverlays().add(mCalloutOverlay);
+		
 		
 		// Apply extracted parameters
 		view.setBuiltInZoomControls(zoom_enabled);
@@ -206,6 +271,8 @@ public class GoogleMapView extends MapActivity {
 			}
 		}
 		
+		//mHolder.clear();
+
 		view.preLoad();
 		
 		Thread geocoding = new Thread(new Runnable() {
@@ -223,19 +290,37 @@ public class GoogleMapView extends MapActivity {
 	}
 	
 	@Override
+	protected void onResume() {
+		super.onResume();
+		if (mMyLocationOverlay != null)
+			mMyLocationOverlay.enableMyLocation();
+
+	}
+	
+	@Override
+	protected void onPause() {
+		super.onPause();
+		if (mMyLocationOverlay != null)
+			mMyLocationOverlay.disableMyLocation();
+
+	}
+	
+	@Override
 	protected void onStop() {
 		RhodesService.activityStopped();
 		super.onStop();
 	}
 	
 	private void doGeocoding() {
+		Vector<Annotation> anns = new Vector<Annotation>();
+		
 		Context context = RhodesActivity.getContext();
 		
 		for (int i = 0, lim = annotations.size(); i < lim; ++i) {
 			Annotation ann = annotations.elementAt(i);
 			if (ann.latitude == 10000 || ann.longitude == 10000)
 				continue;
-			annOverlay.addAnnotation(ann);
+			anns.addElement(ann);
 		}
 		
 		for (int i = 0, lim = annotations.size(); i < lim; ++i) {
@@ -261,19 +346,47 @@ public class GoogleMapView extends MapActivity {
 					center.longitude = ann.longitude;
 					controller.setCenter(new GeoPoint((int)(ann.latitude*1000000), (int)(ann.longitude*1000000)));
 					controller.zoomToSpan((int)(spanLat*1000000), (int)(spanLon*1000000));
+					PerformOnUiThread.exec(new Runnable() {
+						public void run() {
+							view.invalidate();
+						}
+					}, false);
 				}
 				else
-					annOverlay.addAnnotation(ann);
+					anns.addElement(ann);
 			} catch (IOException e) {
 				Logger.E(TAG, "GeoCoding request failed: " + e.getMessage());
 			}
 			
-			PerformOnUiThread.exec(new Runnable() {
-				public void run() {
-					view.invalidate();
-				}
-			}, false);
 		}
+		addAnnotationsInUIThread(annOverlay, anns, view);
+		
+		PerformOnUiThread.exec(new Runnable() {
+			public void run() {
+				view.invalidate();
+			}
+		}, false);
+	}
+	
+	private class AddAnnotationsCommand implements Runnable {
+		public AddAnnotationsCommand(AnnotationsOverlay overlay, Vector<Annotation> annotations, com.google.android.maps.MapView view) {
+			mOverlay = overlay;
+			mAnnotations = annotations;
+			mView = view;
+		}
+		public void run() {
+			//Utils.platformLog(TAG, "add Annotation !");
+			mOverlay.addAnnotations(mAnnotations);
+			mView.invalidate();
+		}
+		private AnnotationsOverlay mOverlay;
+		private Vector<Annotation> mAnnotations;
+		private com.google.android.maps.MapView mView;
+	}
+	
+	private void addAnnotationsInUIThread(AnnotationsOverlay overlay, Vector<Annotation> annotations, com.google.android.maps.MapView view) {
+		//Utils.platformLog(TAG, "perform add Annotations !");
+		PerformOnUiThread.exec(new AddAnnotationsCommand(overlay, annotations, view), false);
 	}
 
 	@Override
@@ -283,8 +396,11 @@ public class GoogleMapView extends MapActivity {
 	
 	@SuppressWarnings("unchecked")
 	public static void create(String gapiKey, Map<String, Object> params) {
+		mHolder = new ExtrasHolder();
 		try {
-			Intent intent = new Intent(RhodesActivity.getContext(), GoogleMapView.class);
+			Intent intent_obj = new Intent(RhodesActivity.getContext(), GoogleMapView.class);
+			mHolder.clear();
+			ExtrasHolder intent = mHolder;
 			intent.putExtra(SETTINGS_PREFIX + "api_key", gapiKey);
 			
 			Object settings = params.get("settings");
@@ -378,10 +494,22 @@ public class GoogleMapView extends MapActivity {
 					Object url = ann.get("url");
 					if (url != null && (url instanceof String))
 						intent.putExtra(prefix + "url", (String)url);
+
+					Object image = ann.get("image");
+					if (image != null && (image instanceof String))
+						intent.putExtra(prefix + "image", (String)image);
+
+					Object image_x_offset = ann.get("image_x_offset");
+					if (image_x_offset != null && (image_x_offset instanceof String))
+						intent.putExtra(prefix + "image_x_offset", (String)image_x_offset);
+					
+					Object image_y_offset = ann.get("image_y_offset");
+					if (image_y_offset != null && (image_y_offset instanceof String))
+						intent.putExtra(prefix + "image_y_offset", (String)image_y_offset);
 				}
 			}
 			
-			RhodesService.getInstance().startActivity(intent);
+			RhodesService.getInstance().startActivity(intent_obj);
 		}
 		catch (Exception e) {
 			reportFail("create", e);

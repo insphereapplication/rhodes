@@ -7,7 +7,7 @@ USE_OWN_STLPORT = false
 
 ANDROID_API_LEVEL_TO_MARKET_VERSION = {}
 ANDROID_MARKET_VERSION_TO_API_LEVEL = {}
-{2 => "1.1", 3 => "1.5", 4 => "1.6", 5 => "2.0", 6 => "2.0.1", 7 => "2.1", 8 => "2.2", 9 => "2.3.1", 10 => "2.3.3", 11 => "3.0", 12 => "3.1"}.each do |k,v|
+{2 => "1.1", 3 => "1.5", 4 => "1.6", 5 => "2.0", 6 => "2.0.1", 7 => "2.1", 8 => "2.2", 9 => "2.3.1", 10 => "2.3.3", 11 => "3.0", 12 => "3.1", 13 => "3.2"  }.each do |k,v|
   ANDROID_API_LEVEL_TO_MARKET_VERSION[k] = v
   ANDROID_MARKET_VERSION_TO_API_LEVEL[v] = k
 end
@@ -1123,6 +1123,7 @@ namespace "build" do
 		  if !$use_geomapping
 			next if line == "platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/GoogleMapView.java"
 			next if line == "platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/AnnotationsOverlay.java"
+            next if line == "platform/android/Rhodes/src/com/rhomobile/rhodes/mapview/CalloutOverlay.java"
 		  end
 
           #next if !$use_geomapping and line =~ /\/GoogleMapView\//
@@ -1561,11 +1562,9 @@ namespace "run" do
         log_name  = $app_path + '/RhoLogSpec.txt'
         File.delete(log_name) if File.exist?(log_name)
 
-        device_flag = '-e'
-
-        logclear(device_flag)
-        run_emulator(:hidden => true) if device_flag == '-e'
-        do_uninstall(device_flag)
+        logclear($device_flag)
+        run_emulator( :hidden => true ) if $device_flag == '-e'
+        do_uninstall($device_flag)
         
         # Failsafe to prevent eternal hangs
         Thread.new {
@@ -1573,8 +1572,8 @@ namespace "run" do
           kill_adb_and_emulator
         }
 
-        load_app_and_run(device_flag)
-        logcat(device_flag, log_name)
+        load_app_and_run($device_flag)
+        logcat($device_flag, log_name)
 
         Jake.before_run_spec
         start = Time.now
@@ -1582,8 +1581,8 @@ namespace "run" do
         puts "waiting for application"
 
         for i in 0..60
-            if application_running(device_flag, $app_package_name)
-		break
+            if application_running($device_flag, $app_package_name)
+                break
             else
                 sleep(1)
             end
@@ -1591,7 +1590,7 @@ namespace "run" do
 
         puts "waiting for log: " + log_name
         
-        for i in 0..60
+        for i in 0..120
 			if !File.exist?(log_name)
 				sleep(1)
 			else
@@ -1618,28 +1617,48 @@ namespace "run" do
             end
             io.close
             
-            break unless application_running(device_flag, $app_package_name)
+            break unless application_running($device_flag, $app_package_name)
+
             sleep(5) unless end_spec
         end
 
         Jake.process_spec_results(start)        
         
         # stop app
-        do_uninstall(device_flag)
+        do_uninstall($device_flag)
         kill_adb
 
         $stdout.flush
-        
     end
 
-    task :phone_spec do
-      exit Jake.run_spec_app('android','phone_spec')
+    task :phone_spec => "phone_spec:emulator"
+
+    task :framework_spec => "framework_spec:emulator"
+
+    namespace "phone_spec" do
+      task :device do
+        $device_flag = "-d"
+        exit Jake.run_spec_app('android','phone_spec')
+      end
+
+      task :emulator do
+        $device_flag = "-e"
+        exit Jake.run_spec_app('android','phone_spec')
+      end
     end
 
-    task :framework_spec do
-      exit Jake.run_spec_app('android','framework_spec')
+    namespace "framework_spec" do
+      task :device do
+        $device_flag = "-d"
+        exit Jake.run_spec_app('android','framework_spec')
+      end
+
+      task :emulator do
+        $device_flag = "-e"
+        exit Jake.run_spec_app('android','framework_spec')
+      end
     end
-    
+
     task :emulator => "device:android:debug" do
         run_emulator
         load_app_and_run

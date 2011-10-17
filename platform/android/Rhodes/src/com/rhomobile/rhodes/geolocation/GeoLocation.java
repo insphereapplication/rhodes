@@ -22,15 +22,42 @@ package com.rhomobile.rhodes.geolocation;
 
 import com.rhomobile.rhodes.Capabilities;
 import com.rhomobile.rhodes.Logger;
-import com.rhomobile.rhodes.RhodesService;
+import com.rhomobile.rhodes.RhoConf;
 import com.rhomobile.rhodes.util.PerformOnUiThread;
 
 public class GeoLocation {
 
 	private static final String TAG = "GeoLocation";
-	private static GeoLocationImpl locImpl = null;
+	private static final String inactivityTimeoutName = "geo_location_inactivity_timeout"; 
+	private static final String updatePeriodName = "gps_ping_timeout_sec"; 
+	private static volatile GeoLocationImpl locImpl = null;
+	private static volatile int inactivityTimerId = 0;
+	private static long updatePeriod = -1;
 	
-	private static int mInactivityTimerId = 0;
+	static long getInactivityTimeout() {
+		long upd = getUpdatePeriod();
+		long ret = 0;
+		if (RhoConf.isExist(inactivityTimeoutName))
+			ret = RhoConf.getInt(inactivityTimeoutName) * 1000;
+
+		if (ret <= upd) {
+			ret = upd*10;
+			Logger.W(TAG, "Inactivity time out less then position update period, override configured value: " + ret);
+		}
+		
+		return ret;
+	}
+	
+	static long getUpdatePeriod() {
+		if (updatePeriod != -1) {
+			return updatePeriod; 
+		}
+		if (RhoConf.isExist(updatePeriodName)) {
+			long ret = RhoConf.getInt(updatePeriodName) * 1000;
+			return ret;
+		} else
+			return 30000; // 30 sec
+	}
 	
 	private static void reportFail(String name, Exception e) {
 		Logger.E(TAG, "Call of \"" + name + "\" failed: " + e.getMessage());
@@ -42,32 +69,42 @@ public class GeoLocation {
 	}
 	
 	private static void updateInactivityTimer() {
-		final int id = ++mInactivityTimerId;
+		final long inactivityTimeout = getInactivityTimeout();
+		Logger.T(TAG, "Updating inactivity timer: " + inactivityTimeout + "ms");
 		PerformOnUiThread.exec(new Runnable() {
+			int lastId = ++inactivityTimerId;
 			public void run() {
-				if (id != mInactivityTimerId)
+				if ((inactivityTimerId != lastId) || (locImpl == null))
 					return;
-				Logger.D(TAG, "Stop geolocation service by timeout");
-				GeoLocation.stop();
+
+				Logger.T(TAG, "Stop geolocation by inactivity timeout: " + inactivityTimeout + "ms");
+				stop();
 			}
-		}, RhodesService.getGeoLocationInactivityTimeout());
+		}, inactivityTimeout);
 	}
-	
+
 	private static GeoLocationImpl getImpl() {
-		synchronized (TAG) {
-			if (locImpl == null)
-				locImpl = new GeoLocationImpl();
-			updateInactivityTimer();
-			return locImpl;
+		if (locImpl == null) {
+			synchronized (GeoLocation.class) {
+				if (locImpl == null) {
+					Logger.T(TAG, "Creating GeoLocationImpl instance.");
+					locImpl = new GeoLocationImpl(getUpdatePeriod());
+					Logger.T(TAG, "GeoLocationImpl instance has created.");
+					locImpl.start();
+					Logger.T(TAG, "GeoLocation has started.");
+				}
+			}
 		}
+		updateInactivityTimer();
+		return locImpl;
 	}
 	
 	public static void stop() {
+		Logger.T(TAG, "stop");
 		try {
-			Logger.T(TAG, "stop");
 			if (locImpl == null)
 				return;
-			synchronized (TAG) {
+			synchronized(GeoLocation.class) {
 				if (locImpl == null)
 					return;
 				locImpl.stop();
@@ -80,8 +117,8 @@ public class GeoLocation {
 	}
 	
 	public static boolean isAvailable() {
+		Logger.T(TAG, "isAvailable...");
 		try {
-			Logger.T(TAG, "isAvailable...");
 			boolean result = false;
 			if (locImpl != null) {
 				checkState();
@@ -93,7 +130,6 @@ public class GeoLocation {
 		catch (Exception e) {
 			reportFail("isAvailable", e);
 		}
-		
 		return false;
 	}
 	
@@ -106,7 +142,6 @@ public class GeoLocation {
 		catch (Exception e) {
 			reportFail("getLatitude", e);
 		}
-			
 		return 0.0;
 	}
 
@@ -119,8 +154,19 @@ public class GeoLocation {
 		catch (Exception e) {
 			reportFail("getLongitude", e);
 		}
-		
 		return 0.0;
+	}
+	
+	public static float getAccuracy() {
+		try {
+			checkState();
+			Logger.T(TAG, "getAccuracy");
+			return getImpl().getAccuracy();
+		}
+		catch (Exception e) {
+			reportFail("getAccuracy", e);
+		}
+		return 0;
 	}
 
 	public static boolean isKnownPosition() {
@@ -132,7 +178,6 @@ public class GeoLocation {
 		catch (Exception e) {
 			reportFail("isKnownPosition", e);
 		}
-		
 		return false;
 	}
 	
@@ -144,8 +189,9 @@ public class GeoLocation {
 			}
 			
 			checkState();
-			Logger.T(TAG, "setTimeout");
-			getImpl().setTimeout(nsec);
+			Logger.T(TAG, "setTimeout: " + nsec + "s");
+			updatePeriod = nsec * 1000;
+			getImpl().setTimeout(updatePeriod);
 		}
 		catch (Exception e) {
 			reportFail("setTimeout", e);

@@ -6,10 +6,11 @@
 #include "net/INetRequest.h"
 #include <math.h>
 
+#undef DEFAULT_LOGCATEGORY
+#define DEFAULT_LOGCATEGORY "GeoLocation"
+
 extern "C" {
-double rho_geo_latitude();
-double rho_geo_longitude();
-int rho_geo_known_position();	
+int rho_geo_known_position();
 void rho_geoimpl_settimeout(int nTimeoutSec);
 int rho_geo_is_available();
 }
@@ -26,6 +27,7 @@ CGeoLocation* CGeoLocation::m_pInstance = 0;
     if ( m_pInstance ) 
         return m_pInstance;
 
+    RAWLOG_INFO("Creating singleton instance.");
     m_pInstance = new CGeoLocation();
     return m_pInstance;
 }
@@ -33,9 +35,21 @@ CGeoLocation* CGeoLocation::m_pInstance = 0;
 /*static*/void CGeoLocation::Destroy()
 {
     if ( m_pInstance )
+    {
+        RAWLOG_INFO("Destroying singleton instance.");
         delete m_pInstance;
+    }
 
     m_pInstance = 0;
+}
+
+/*static*/CGeoLocation* CGeoLocation::getInstance()
+{
+    if (!m_pInstance)
+    {
+        RAWLOG_FATAL("No singleton instance!!!!");
+    }
+    return m_pInstance;
 }
 
 CGeoLocation::CGeoLocation()
@@ -43,87 +57,113 @@ CGeoLocation::CGeoLocation()
     m_nGeoPingTimeoutSec = 0;
 }
 
-void CGeoLocation::callGeoCallback(const CGeoNotification& oNotify, boolean bError, boolean bRunInThread)
+void CGeoLocation::callGeoCallback(const CGeoNotification& oNotify, const char* pszError, boolean bRunInThread)
 {
-	if (oNotify.m_strUrl.length() == 0)
-		return;
-	
-	String strFullUrl = getNet().resolveUrl(oNotify.m_strUrl);
-	String strBody = "rho_callback=1";
-	if (bError && rho_geo_is_available() )
-		strBody += "&status=error&error_code=" + convertToStringA(12);//RhoRuby.ERR_GEOLOCATION;
-	else	
-		strBody += "&status=ok";
+    if ((oNotify.m_strUrl.length() == 0))
+        return;
 
-	strBody += "&available=" + convertToStringA( (rho_geo_is_available() ? 1 : 0) );
-	strBody += "&known_position=" + convertToStringA(rho_geo_known_position());
-	strBody += "&latitude=" + convertToStringA(rho_geo_latitude());
-	strBody += "&longitude=" + convertToStringA(rho_geo_longitude());
+    String strFullUrl = getNet().resolveUrl(oNotify.m_strUrl);
+    String strBody = "rho_callback=1";
+    if (pszError) {
+        strBody += "&status=";
+        strBody += pszError;
+        if (!strcmp(pszError, "error")) {
+            strBody += "&error_code=" + convertToStringA(12);//RhoRuby.ERR_GEOLOCATION;
+        }
+        if (rho_geo_is_available()) {
+            strBody += "&available=1&known_position=" + convertToStringA(rho_geo_known_position());
+            strBody += "&latitude=" + convertToStringA(rho_geo_latitude());
+            strBody += "&longitude=" + convertToStringA(rho_geo_longitude());
+            strBody += "&accuracy=" + convertToStringA(rho_geo_accuracy());
+        } else {
+            strBody += "&available=0&known_position=0&latitude=0.0&longitude=0.0&accuracy=0.0";
+        }
+    } else {
+        strBody += "&status=ok";
+        strBody += "&available=" + convertToStringA( (rho_geo_is_available() ? 1 : 0) );
+        strBody += "&known_position=" + convertToStringA(rho_geo_known_position());
+        strBody += "&latitude=" + convertToStringA(rho_geo_latitude());
+        strBody += "&longitude=" + convertToStringA(rho_geo_longitude());
+        strBody += "&accuracy=" + convertToStringA(rho_geo_accuracy());
+    }
 
     if ( oNotify.m_strParams.length() > 0 )
         strBody += "&" + oNotify.m_strParams;
 
-    if ( bRunInThread )
+    //if ( bRunInThread )
         RHODESAPP().runCallbackInThread(strFullUrl, strBody);
-    else
-    {
-        getNet().pushData( strFullUrl, strBody, null );
-    }
+    //else
+    //{
+    //    getNet().pushData( strFullUrl, strBody, null );
+    //}
 }
 
-void CGeoLocation::callGeoCallback(boolean bError, boolean bRunInThread)
+void CGeoLocation::callGeoCallback(const char* pszError, boolean bRunInThread)
 {
     synchronized(m_mxNotify)
     {
-        callGeoCallback(m_Notify, bError, bRunInThread);
-        m_Notify = CGeoNotification();
-        callGeoCallback(m_ViewNotify, bError, bRunInThread);
-        if ( bError )
+        RAWTRACE4("Call geo callback: %s, %s, status=%s, runInThread=%d.",
+                     m_Notify.m_strUrl.c_str(), m_Notify.m_strParams.c_str(), pszError?pszError:"ok", (int)bRunInThread);
+        callGeoCallback(m_Notify, pszError, bRunInThread);
+        if(pszError && !strcmp(pszError, "stop")) {
+            RAWTRACE("Reset geo notification callback to default.");
+            m_Notify = CGeoNotification();
+        }
+        RAWTRACE4("Call geo view callback: %s, %s, status=%s, runInThread=%d.",
+                     m_ViewNotify.m_strUrl.c_str(), m_ViewNotify.m_strParams.c_str(), pszError?pszError:"ok", (int)bRunInThread);
+        callGeoCallback(m_ViewNotify, pszError, bRunInThread);
+        if (pszError) {
+            RAWTRACE("Reset geo view notification callback to default.");
             m_ViewNotify = CGeoNotification();
+        }
     }
 }
 
-void CGeoLocation::setGeoCallback(const char *url, char* params, int timeout_sec, boolean bView)
+void CGeoLocation::setGeoCallback(const char *url, const char* params, int timeout_sec, boolean bView)
 {
-    if ( bView)
-        m_ViewNotify = CGeoNotification(url?url:"",params?params:"");
-    else
-        m_Notify = CGeoNotification(url?url:"",params?params:"");
+    synchronized(m_mxNotify)
+    {
+        if ( bView) {
+            RAWTRACE2("Set geo view notification callback: %s, %s", url, params);
+            m_ViewNotify = CGeoNotification(url?url:"",params?params:"");
+        } else {
+            RAWTRACE2("Set geo notification callback: %s, %s", url, params);
+            m_Notify = CGeoNotification(url?url:"",params?params:"");
+        }
+    }
 
     if ( url && *url )
     {
+        RAWTRACE1("Set new geo ping timeout %d sec", timeout_sec);
+
         setPingTimeoutSec(timeout_sec);
 
         if ( !rho_geo_is_available() )
-            callGeoCallback(true, true);
+            callGeoCallback("error", true);
     }
 }
 
 int CGeoLocation::getDefaultPingTimeoutSec()
 {
-	int nPingTimeoutSec = RHOCONF().getInt("gps_ping_timeout_sec");
-	if (nPingTimeoutSec==0)
-		nPingTimeoutSec = 10;
-	
-	return nPingTimeoutSec;
+    if (RHOCONF().isExist("gps_ping_timeout_sec"))
+        return RHOCONF().getInt("gps_ping_timeout_sec");
+    else 
+        return 0;
 }
 
 void CGeoLocation::setPingTimeoutSec( int nTimeout )
 {
 	int nNewTimeout = nTimeout;
-	if (nNewTimeout == 0)
+	if (nNewTimeout == -1)
 		nNewTimeout = getDefaultPingTimeoutSec();
 	
-	//if ( nNewTimeout != m_nGeoPingTimeoutSec)
-	//{
-		m_nGeoPingTimeoutSec = nNewTimeout;
-		rho_geoimpl_settimeout(m_nGeoPingTimeoutSec);
-	//}
+	m_nGeoPingTimeoutSec = nNewTimeout;
+	rho_geoimpl_settimeout(m_nGeoPingTimeoutSec);
 }
 
 int CGeoLocation::getGeoTimeoutSec()
 {
-	if (m_nGeoPingTimeoutSec==0)
+	if (m_nGeoPingTimeoutSec==-1)
 		m_nGeoPingTimeoutSec = getDefaultPingTimeoutSec();
 	
 	return m_nGeoPingTimeoutSec;
@@ -181,12 +221,17 @@ void rho_geo_set_view_notification( const char *url, char* params, int timeout_s
 
 void rho_geo_callcallback()
 {
-    CGeoLocation::getInstance()->callGeoCallback(false);
+    CGeoLocation::getInstance()->callGeoCallback();
 }
 
 void rho_geo_callcallback_error()
 {
-    CGeoLocation::getInstance()->callGeoCallback(true);
+    CGeoLocation::getInstance()->callGeoCallback("error");
+}
+
+void rho_geo_callcallback_stop()
+{
+    CGeoLocation::getInstance()->callGeoCallback("stop");
 }
 
 int rho_geo_gettimeout_sec()
