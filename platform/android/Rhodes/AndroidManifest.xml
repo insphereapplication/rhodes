@@ -14,12 +14,14 @@
         android:debuggable="true">
         
         <!-- Main activity -->
+	<!-- Dwayne Smith - Added android:windowSoftInputMode="adjustPan" to activity section.  The soft keyboard will overlay the tabbar with this option when full_screen = 0 in rhoconfig.txt -->
         <activity
             android:name="com.rhomobile.rhodes.RhodesActivity"
             android:label="@string/app_name"
             android:configChanges="orientation|keyboardHidden"
             android:screenOrientation="unspecified"
-            android:launchMode="singleTask">
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustPan">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
