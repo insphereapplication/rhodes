@@ -1084,7 +1084,7 @@ static BOOL makeHiddenUntilLoadContent = YES;
 - (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error {
 
  
-    PROF_STOP("BROWSER_PAGE");
+//    PROF_STOP("BROWSER_PAGE");
 
     NSString* info = [error localizedDescription];
     NSString* reason = [error localizedFailureReason];
