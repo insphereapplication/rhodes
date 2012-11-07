@@ -453,8 +453,7 @@ static Rhodes *instance = NULL;
         [splashViewController release];
         splashViewController = nil;
 		
-		//[window addSubview:mainView.view];
-        window.rootViewController = mainView;
+		[window addSubview:mainView.view];
 		[window bringSubviewToFront:mainView.view];
     }
 }
@@ -500,14 +499,7 @@ static Rhodes *instance = NULL;
 	}
 	
     mainView = [view retain];
-    //[window addSubview:mainView.view];
-    
-    //[window setRootViewController:mainView];
-    
-    window.rootViewController = mainView;
-    
-    
-    
+    [window addSubview:mainView.view];
 	//[window bringSubviewToFront:mainView.view];
 	
 	if (isVerticalTab) {
@@ -640,8 +632,7 @@ static Rhodes *instance = NULL;
 	BOOL is_splash_screen_maked = [self showLoadingPagePre];
 	
 	if (!is_splash_screen_maked) {
-        window.rootViewController = mainView;
-		//[window addSubview:mainView.view];
+		[window addSubview:mainView.view];
 	}
 	
     [window makeKeyAndVisible];

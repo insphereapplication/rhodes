@@ -35,18 +35,4 @@
 	return YES;
 }
 
-- (BOOL)shouldAutorotate {
-    if ([[Rhodes sharedInstance] isRotationLocked])
-        return NO;
-	return YES;
-}
-
-
-- (NSUInteger)supportedInterfaceOrientations
-{
-     if ([[Rhodes sharedInstance] isRotationLocked])
-         return UIInterfaceOrientationMaskPortrait;
-    return UIInterfaceOrientationMaskAll;
-}
-
 @end
