@@ -381,15 +381,16 @@ namespace "config" do
         end
     end
 
+    # Dwayne Smith -  not sure why these extensions are automatically begin added
     # add rawsensors extension for rhoelements app
-    if $current_platform == "iphone" || $current_platform == "android"
-        if $app_config["app_type"] == 'rhoelements'
-            if !$app_config['extensions'].index('rhoelementsext')
-                $app_config["extensions"] += ["rawsensors"] unless $app_config['extensions'].index('rawsensors')
-                $app_config["extensions"] += ["audiocapture"] unless $app_config['extensions'].index('audiocapture')
-            end
-        end
-    end
+    #if $current_platform == "iphone" || $current_platform == "android"
+    #    if $app_config["app_type"] == 'rhoelements'
+    #        if !$app_config['extensions'].index('rhoelementsext')
+    #            $app_config["extensions"] += ["rawsensors"] unless $app_config['extensions'].index('rawsensors')
+    #            $app_config["extensions"] += ["audiocapture"] unless $app_config['extensions'].index('audiocapture')
+    #        end
+    #    end
+    #end
     if $app_config['extensions'].index('rhoelementsext')
         $app_config["extensions"].delete("rawsensors")
         $app_config["extensions"].delete("audiocapture")
