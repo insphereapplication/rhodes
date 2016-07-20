@@ -237,6 +237,14 @@ public class DateTimePickerScreen extends BaseActivity {
 		this.setTitle(_title);
 		
 		_datePicker = (DatePicker)findViewById(R.id.datePicker);
+		
+		if (_fmt == FORMAT_DATE) {
+			_datePicker.setCalendarViewShown(false);
+		}
+		else {
+			_datePicker.setCalendarViewShown(true);
+		}
+		
 		_timePicker = (TimePicker)findViewById(R.id.timePicker);
 		_okButton = (Button)findViewById(R.id.okButton);
 		_cancelButton = (Button)findViewById(R.id.cancelButton);
