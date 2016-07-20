@@ -58,7 +58,7 @@ public class Notification {
         this.id = id;
         this.result = result;
         
-        Context ctx = ContextFactory.getUiContext();
+        Context ctx = ContextFactory.getAppContext();
         
         String iconName = null;
 
