@@ -27,6 +27,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.util.DisplayMetrics;
+import android.media.RingtoneManager;
 import com.rhomobile.rhodes.Logger;
 import com.rhomobile.rhodes.R;
 import com.rhomobile.rhodes.RhodesActivity;
@@ -306,6 +307,7 @@ public class Notification {
 
         builder.setSmallIcon(R.drawable.ic_notification);
         builder.setContentIntent(PendingIntent.getActivity(ctx, id, new Intent(ctx, RhodesActivity.class), PendingIntent.FLAG_UPDATE_CURRENT));
+		builder.setSound(RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION));
         
         if (kinds.contains(INotificationSingleton.TYPE_NOTIFICATION_DIALOG)) {
             for (ActionData action: actions) {
