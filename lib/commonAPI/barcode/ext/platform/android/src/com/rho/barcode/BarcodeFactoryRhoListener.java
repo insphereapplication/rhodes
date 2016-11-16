@@ -29,22 +29,32 @@ public class BarcodeFactoryRhoListener extends AbstractRhoListener
 		int myUseDWScanning = 0;
 		IRhoConfig myIRhoConfig= null;
 		IRhoWebView myIRhoWebView=RhodesActivity.safeGetInstance().getMainView().getWebView(0);
-		GoogleWebView myGoogleWebView=(GoogleWebView)myIRhoWebView;
-		myIRhoConfig=myGoogleWebView.getConfig();
+		GoogleWebView myGoogleWebView=null;
 
-		if(myIRhoConfig.getString("usedwforscanning") != null)
-		 {
-			try
-			{
-				myUseDWScanning = Integer.parseInt(myIRhoConfig.getString("usedwforscanning"));
-				Logger.D(TAG, "BarcodeFactoryRhoListener onResume-usedwsforcanning value"+myUseDWScanning);
-			}
-			catch(Exception e)
-			{
-				Logger.W(TAG, "BarcodeFactoryRhoListener onResume-exception:- "+e.getMessage());
-				myUseDWScanning=0;
-			}
-		 }
+		try {
+			myGoogleWebView=(GoogleWebView)myIRhoWebView;			
+		} catch( ClassCastException e ) {
+			Logger.W(TAG, "onResume: WebView is not from Google, skipping configuration" );
+			myGoogleWebView = null;
+		}
+
+		if ( myGoogleWebView != null ) {
+			myIRhoConfig=myGoogleWebView.getConfig();
+
+			if(myIRhoConfig.getString("usedwforscanning") != null)
+			 {
+				try
+				{
+					myUseDWScanning = Integer.parseInt(myIRhoConfig.getString("usedwforscanning"));
+					Logger.D(TAG, "BarcodeFactoryRhoListener onResume-usedwsforcanning value"+myUseDWScanning);
+				}
+				catch(Exception e)
+				{
+					Logger.W(TAG, "BarcodeFactoryRhoListener onResume-exception:- "+e.getMessage());
+					myUseDWScanning=0;
+				}
+			 }
+		}
 		
 		if(IsFirstResume)
 		{
