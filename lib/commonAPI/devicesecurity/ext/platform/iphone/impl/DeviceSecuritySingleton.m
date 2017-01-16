@@ -45,8 +45,16 @@
     return NO;
 }
 
+-(BOOL) isSimulator {
+#if !(TARGET_IPHONE_SIMULATOR)
+    return NO;
+#else
+    return YES;
+#endif
+}
+
 -(void) isDeviceSecured:(id<IMethodResult>)methodResult {
-    [methodResult setResult:[NSNumber numberWithBool:![self isJailbroken]]];
+    [methodResult setResult:[NSNumber numberWithBool:!([self isJailbroken] || [self isSimulator])]];
 }
 
 -(void) isDeviceJailbroken:(id<IMethodResult>)methodResult {
@@ -58,18 +66,41 @@
 }
 
 -(void) isRunOnSimulator:(id<IMethodResult>)methodResult {
-#if !(TARGET_IPHONE_SIMULATOR)
-    [methodResult setResult:[NSNumber numberWithBool:NO]];
-#else
-    [methodResult setResult:[NSNumber numberWithBool:YES]];
-#endif
+    [methodResult setResult:[NSNumber numberWithBool:[self isSimulator]]];
 }
 
 -(void) isDebugMode:(id<IMethodResult>)methodResult {
     [methodResult setResult:[NSNumber numberWithBool:NO]];
 }
 
+-(void) getAppCertificateSignatures:(id<IMethodResult>)methodResult {
+    NSMutableArray *arr = [[NSMutableArray alloc] initWithCapacity:1];
+    [methodResult setResult:arr];
+}
 
+-(void) getAllowedCertificateSignatures:(id<IMethodResult>)methodResult {
+    NSMutableArray *arr = [[NSMutableArray alloc] initWithCapacity:1];
+    [methodResult setResult:arr];
+}
+
+-(void) getInstallerPackageName:(id<IMethodResult>)methodResult {
+    NSMutableArray *arr = [[NSMutableArray alloc] initWithCapacity:1];
+    [methodResult setResult:@""];
+}
+
+-(void) getAllowedInstallerPackages:(id<IMethodResult>)methodResult {
+    NSMutableArray *arr = [[NSMutableArray alloc] initWithCapacity:1];
+    [methodResult setResult:arr];
+}
+
+-(void) haveAnySignatureIssues:(id<IMethodResult>)methodResult {
+    [methodResult setResult:[NSNumber numberWithBool:NO]];
+}
+
+
+-(void) haveAnyInstallerIssues:(id<IMethodResult>)methodResult {
+    [methodResult setResult:[NSNumber numberWithBool:NO]];
+}
 
 
 @end
