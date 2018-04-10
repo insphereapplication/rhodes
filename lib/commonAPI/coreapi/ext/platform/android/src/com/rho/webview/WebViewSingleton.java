@@ -19,9 +19,14 @@ import com.rhomobile.rhodes.mainview.MainView;
 import com.rhomobile.rhodes.webview.WebViewConfig;
 
 import com.rhomobile.rhodes.util.ContextFactory;
+import com.rhomobile.rhodes.util.PerformOnUiThread;
 
 import android.net.Proxy;
 import android.net.Uri;
+import android.webkit.ValueCallback;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class WebViewSingleton implements IWebViewSingleton, IRhoExtension {
 
@@ -68,6 +73,16 @@ public class WebViewSingleton implements IWebViewSingleton, IRhoExtension {
     public void setFullScreen(boolean value, IMethodResult result) {
         BaseActivity.setFullScreenMode(value);
     }
+
+    @Override
+    public void getKeyboardDisplayRequiresUserAction(IMethodResult result) {
+        result.set(true);
+    }
+
+    @Override
+    public void setKeyboardDisplayRequiresUserAction(boolean value, IMethodResult result) {
+    }
+
 
     @Override
     public void getEnableZoom(IMethodResult result) {
@@ -260,6 +275,65 @@ public class WebViewSingleton implements IWebViewSingleton, IRhoExtension {
     @Override
     public void setCookie(String url, String cookie, IMethodResult result) {
         WebView.setCookie(url, cookie);
+    }
+
+    @Override
+    public void getCookies(final String url, final IMethodResult result) {
+      try {
+          PerformOnUiThread.exec(new Runnable() {
+              @Override
+              public void run() {
+                  result.set( WebView.getCookies(url) );
+              }
+          });
+      }
+      catch (Exception e) {
+          Logger.E(TAG, e);
+          result.setError( e.toString() );
+      }
+    }
+
+    @Override
+    public void removeCookie(final String url, final String cookie, final IMethodResult result) {
+
+      try {
+          PerformOnUiThread.exec(new Runnable() {
+              @Override
+              public void run() {
+                  boolean removed = WebView.removeCookie(url, cookie);
+                  Map<String,Object> res = new HashMap();
+                  if ( removed ) {
+                      res.put( "removed_cookie", cookie );
+                  }
+                  result.set(res);
+              }
+          });
+      }
+      catch (Exception e) {
+          Logger.E(TAG, e);
+          result.setError(e.toString());
+      }
+    }
+
+    @Override
+    public void removeAllCookies( final IMethodResult result ) {
+        try {
+            PerformOnUiThread.exec(new Runnable() {
+                @Override
+                public void run() {
+                    WebView.removeAllCookies( new ValueCallback<Boolean>() {
+                        @Override
+                        public void onReceiveValue( Boolean v ) {
+                            result.set( v.booleanValue() );
+                        }
+
+                    });
+                }
+            });
+        } catch (Exception e) {
+            Logger.E(TAG,e);
+            result.setError(e.toString());
+        }
     }
 
     @Override

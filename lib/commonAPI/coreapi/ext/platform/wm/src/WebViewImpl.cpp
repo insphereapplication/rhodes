@@ -205,9 +205,27 @@ public:
         rho_webview_set_cookie( url.c_str(), cookie.c_str() );
     }
 
+    virtual void getCookies( const rho::String& url, rho::apiGenerator::CMethodResult& oResult)
+    {
+
+    }
+
+    virtual void removeCookie( const rho::String& url,  const rho::String& name, rho::apiGenerator::CMethodResult& oResult)
+    {
+
+    }
+
+    virtual void removeAllCookies(rho::apiGenerator::CMethodResult& oResult)
+    {
+      
+    }
+
     //Android only
     virtual void save( const rho::String& format,  const rho::String& path,  int tabIndex, rho::apiGenerator::CMethodResult& oResult){}
     //
+
+	void getKeyboardDisplayRequiresUserAction(rho::apiGenerator::CMethodResult& oResult){}
+    void setKeyboardDisplayRequiresUserAction( bool keyboardDisplayRequiresUserAction, rho::apiGenerator::CMethodResult& oResult){}
 };
 
 ////////////////////////////////////////////////////////////////////////

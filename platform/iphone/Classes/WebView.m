@@ -210,6 +210,29 @@ BOOL rho_webview_get_full_screen_mode() {
     return [Rhodes getStatusBarHidden];
 }
 
+BOOL rho_webview_get_KeyboardDisplayRequiresUserAction() {
+    if (!rho_rhodesapp_check_mode())
+        return YES;
+    UIView *webv_v = [[[[Rhodes sharedInstance] mainView] getRhoWebView:-1] view];
+    UIWebView* webv = (UIWebView*)webv_v;
+    
+    if (webv != nil) {
+        return webv.keyboardDisplayRequiresUserAction;
+    }
+    
+    return YES;
+}
+
+void rho_webview_set_KeyboardDisplayRequiresUserAction(BOOL value) {
+    if (!rho_rhodesapp_check_mode())
+        return;
+    UIView *webv_v = [[[[Rhodes sharedInstance] mainView] getRhoWebView:-1] view];
+    UIWebView* webv = (UIWebView*)webv_v;
+    
+    if (webv != nil) {
+        webv.keyboardDisplayRequiresUserAction = value;
+    }
+}
 
 
 void rho_webview_set_cookie(const char *u, const char *c)
@@ -221,6 +244,30 @@ void rho_webview_set_cookie(const char *u, const char *c)
     NSString *cookie = [NSString stringWithUTF8String:c];
     [Rhodes performOnUiThread:runnable arg:url arg:cookie wait:NO];
 }
+
+void rho_webview_get_cookies( NSString* url, NSDictionary** retVal )
+{
+  if (!rho_rhodesapp_check_mode())
+      return;
+
+    *retVal = [[Rhodes sharedInstance] getCookies:url];
+}
+
+BOOL rho_webview_remove_cookie( NSString* url, NSString* name )
+{
+  if (!rho_rhodesapp_check_mode())
+      return false;
+    
+  return [[Rhodes sharedInstance] removeCookie:url name:name];
+}
+
+BOOL rho_webview_remove_all_cookies() {
+    if (!rho_rhodesapp_check_mode())
+        return false;
+    
+    return [[Rhodes sharedInstance] removeAllCookies];
+}
+
 
 void rho_webview_save(const char* format, const char* path, int tab_index)
 {
