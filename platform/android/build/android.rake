@@ -545,7 +545,7 @@ namespace "config" do
 
     $app_config["capabilities"] += ANDROID_CAPS_ALWAYS_ENABLED
     $app_config["capabilities"].map! { |cap| cap.is_a?(String) ? cap : nil }.delete_if { |cap| cap.nil? }
-    $use_google_addon_api = true unless $app_config["capabilities"].index("push").nil?
+    #$use_google_addon_api = true unless $app_config["capabilities"].index("push").nil?
 
     puts "Use Google addon API (2): #{$use_google_addon_api}" if USE_TRACES
 
